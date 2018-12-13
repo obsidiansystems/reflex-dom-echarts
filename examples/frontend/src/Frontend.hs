@@ -64,11 +64,10 @@ app r = prerender blank $ do
   pb <- getPostBuild
   ev <- cpuStatWebSocket r
   widgetHold blank $ ffor pb $ \_ -> do
-    multipleXAxes
     basicLineChart
     cpuStatTimeLineChart ev
+    multipleXAxes
     return ()
-  text "here"
   return ()
 
 tickWithSpeedSelector

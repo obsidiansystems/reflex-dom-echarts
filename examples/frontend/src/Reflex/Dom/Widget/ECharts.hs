@@ -30,25 +30,20 @@ import Control.Lens
 type XAxisData = Text
 
 data LineChartConfig t k = LineChartConfig
-  -- Should be Dynamic
+  -- XXX Can be made a Dynamic
+  -- and use this API to adjust size
+  -- https://ecomfe.github.io/echarts-doc/public/en/api.html#echartsInstance.resize
   { _lineChartConfig_size :: (Int, Int)
-  -- We will re-create the whole chart
+  -- We will re-create the whole chart if the options change
   , _lineChartConfig_options :: Dynamic t ChartOptions
-  , _lineChartConfig_series ::
-      Map k ( Series SeriesLine
-            , Dynamic t (Map XAxisData (Data SeriesLine))
-            , Dynamic t [XAxisData]
-            )
-  -- Easy to use interface, Later
-  -- , _chartConfig_updateData :: Map k (Series seriesType
-  --                                , (Event t [XData], Event t [(XData, YData)])
-  --                                , Event t (Map XData (Maybe YData))
-  -- -- only append update of Array
-  -- , _chartConfig_appendData :: Map k (Int, Event t [Data seriesType])
-  -- This will be necessary to modify axis
-  -- , _lineChartConfig_xAxisData :: Dynamic t [XAxisData]
+  , _lineChartConfig_series :: Map k
+    ( Series SeriesLine
+    , Dynamic t (Map XAxisData (Data SeriesLine))
+    , Dynamic t [XAxisData]
+    )
   }
 
+-- Currently nothing interesting here
 data Chart = Chart
 
 lineChart
@@ -70,6 +65,9 @@ lineChart c = do
   let attr = (_lineChartConfig_size c) & \(w, h) ->
         "style" =: ("width:" <> tshow w <> "px; height:" <> tshow h <> "px;")
   e <- fst <$> elAttr' "div" attr blank
+
+  -- The initialization is done using PostBuild because the element need
+  -- to be present in the DOM before calling echarts APIs
   p <- getPostBuild
   opt0 <- sample (current $ _lineChartConfig_options c)
   optV <- liftJSM $ toJSVal opt0
@@ -77,72 +75,59 @@ lineChart c = do
 
   -- Init the chart
   chart <- performEvent $ ffor p $ \_ -> liftJSM $ do
-    liftIO $ putStrLn "hello"
     c <- ECharts.initECharts $ _element_raw e
     toJSVal optVObj >>= setOptionWithCatch c
     return c
 
-  -- performEvent_ $ ffor chart $ \c -> liftJSM $ do
-  --   (toJSVal opt0Obj >>= setOptionWithCatch c)
-    -- w <- jsg ("console" :: Text)
-    -- w ^. js1 ("log" :: Text) (o)
-    -- return ()
-
   cDyn <- holdDyn Nothing (Just <$> chart)
 
-  -- Convert the series options to
-  -- (Series JSVal, (xAxisIndex, xAxis[i].data))
-  -- [Dynamic t (JSVal, (Int, JSVal))]
-  dataJSVals <- forM (Map.elems $ _lineChartConfig_series c) $ \(s, dd, xd) -> do
-    -- series
-    let
-      i = maybe 0 id (s ^. series_xAxisIndex)
-    sVal <- liftJSM (makeObject =<< toJSVal (Some.This $ SeriesT_Line s))
+  -- Convert the user specified "series" options to JSVal
+  -- and modify it according to the Dynamic values
+  -- (series, (series.xAxisIndex, xAxis[i].data))
+  -- The (xAxisIndex, xAxis[i].data) are later used to modify the "xAxis" object
+  dataJSVals :: [Dynamic t (Object, (Int, JSVal))] <-
+    forM (Map.elems $ _lineChartConfig_series c) $ \(s, dd, xd) -> do
+      -- series options without the data
+      sVal <- liftJSM (makeObject =<< toJSVal (Some.This $ SeriesT_Line s))
 
-    let makeJSVals m xs = do
+      let
+        i = maybe 0 id (s ^. series_xAxisIndex)
+        makeJSVals m xs = do
+          -- The ordering of elements is determined by xs
+          -- XXX default value of 0 might be wrong here
           dv <- toJSVal (map (\x -> Map.findWithDefault (DataInt 0) x m) xs)
           setProp "data" dv sVal
           xv <- toJSVal xs
           return xv
 
-    -- xAxis data
-    initV <- do
-      m <- sample (current dd)
-      xs <- sample (current xd)
-      liftJSM $ makeJSVals m xs
+      initV <- do
+        m <- sample (current dd)
+        xs <- sample (current xd)
+        liftJSM $ makeJSVals m xs
 
-    let yx = (,) <$> dd <*> xd
-    ev <- performEvent $ ffor (updated yx) $ \(m, xs) -> liftJSM $ makeJSVals m xs
+      let yx = (,) <$> dd <*> xd
+      ev <- performEvent $ ffor (updated yx) $ \(m, xs) ->
+        liftJSM $ makeJSVals m xs
 
-    foldDyn (\xv _ -> (sVal, (i, xv))) (sVal, (i, initV)) ev
-
-  let dataDyn = sequenceA dataJSVals
-  -- add to opt0 and set
-  -- performEvent $ ffor (attach (current dataDyn) chart) $ \(d, chart) -> liftJSM $ do
-  --   dv <- toJSVal d
-  --   setProp "series" dv opt0Obj
-  --   liftJSM $ do
-  --     w <- jsg ("console" :: Text)
-  --     w ^. js1 ("log" :: Text) dv
-  --   toJSVal opt0Obj >>= setOptionWithCatch chart
-
-  let updEv = leftmost [(updated dataDyn), tag (current dataDyn) chart]
-  m1 <- performEvent $ ffor updEv $ \d -> liftJSM $ do
-    dv <- toJSVal $ map fst d
-    xAxis <- getProp "xAxis" optVObj >>= makeObject
-
-    let f (i, v) = do
-          a <- (xAxis !! i) >>= makeObject
-          setProp "data" v a
-    mapM f $ map snd d
-    xv <- toJSVal xAxis
-    return [("series", dv), ("xAxis", xv)]
+      foldDyn (\xv _ -> (sVal, (i, xv))) (sVal, (i, initV)) ev
 
   let
-    modObjEv :: Event t [(JSString, JSVal)]
-    modObjEv = m1
+    dataDyn = sequenceA dataJSVals
+    updEv = leftmost [(updated dataDyn), tag (current dataDyn) chart]
+  m1 :: Event t [(JSString, JSVal)] <- performEvent $ ffor updEv $ \d -> liftJSM $ do
+    series <- toJSVal $ map fst d
+    xAxisObj <- getProp "xAxis" optVObj >>= makeObject
 
-  performEvent $ ffor (attach (current cDyn) modObjEv) $ \((Just chart), fvs) -> liftJSM $ do
+    let f (i, v) = do
+          -- XXX This can throw exception if user did not specify
+          -- xAxis in ChartOptions correctly
+          a <- (xAxisObj !! i) >>= makeObject
+          setProp "data" v a
+    mapM f $ map snd d
+    xAxis <- toJSVal xAxisObj
+    return [("series", series), ("xAxis", xAxis)]
+
+  performEvent $ ffor (attach (current cDyn) m1) $ \((Just chart), fvs) -> liftJSM $ do
     mapM (\(f, v) -> setProp f v optVObj) fvs
     toJSVal optVObj >>= setOptionWithCatch chart
 
@@ -152,11 +137,11 @@ data TimeLineChartConfig t k = TimeLineChartConfig
   { _timeLineChartConfig_size :: (Int, Int)
   -- We will re-create the whole chart
   , _timeLineChartConfig_options :: Dynamic t ChartOptions
-  , _timeLineChartConfig_appendData ::
-      Map k ( Series SeriesLine
-            , Int
-            , Event t [(UTCTime, Double)]
-            )
+  , _timeLineChartConfig_appendData :: Map k
+    ( Series SeriesLine
+    , Int
+    , Event t [(UTCTime, Double)]
+    )
   }
 
 timeLineChart
@@ -185,7 +170,6 @@ timeLineChart c = do
 
   -- Init the chart
   chart <- performEvent $ ffor p $ \_ -> liftJSM $ do
-    liftIO $ putStrLn "hello"
     c <- ECharts.initECharts $ _element_raw e
     toJSVal optVObj >>= setOptionWithCatch c
     return c
@@ -193,12 +177,14 @@ timeLineChart c = do
   cDyn <- holdDyn Nothing (Just <$> chart)
 
   dataJSVals <- forM (Map.elems $ _timeLineChartConfig_appendData c) $ \(s, len, ev) -> do
-    -- series
+    -- series object
     sVal <- liftJSM (makeObject =<< toJSVal (Some.This $ SeriesT_Line s))
 
     rec
       newArr <- performEvent $ ffor (attach (current arrDyn) ev) $ \(arr, vs) -> liftJSM $ do
         let
+          -- The timeline needs special data object with name and value fields
+          -- the value has to be a tuple like this to render properly
           f :: (UTCTime, Double) -> Data SeriesLine
           f (t, v) = def
             & data_name ?~ utcTimeToEpoch t
@@ -214,7 +200,9 @@ timeLineChart c = do
 
     holdDyn sVal (sVal <$ ev)
 
-  let dataDyn = sequenceA dataJSVals
+  let
+    dataDyn :: Dynamic t [Object]
+    dataDyn = sequenceA dataJSVals
 
   performEvent $ ffor (attach (current cDyn) (updated dataDyn)) $ \((Just chart), d) -> liftJSM $ do
     dv <- toJSVal d
