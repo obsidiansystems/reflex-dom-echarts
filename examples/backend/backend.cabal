@@ -12,6 +12,14 @@ library
                , frontend
                , obelisk-backend
                , obelisk-route
+               , aeson
+               , bytestring
+               , dependent-sum
+               , text
+               , websockets
+               , time
+               , containers
+               , websockets-snap
   exposed-modules:
     Backend
   ghc-options: -Wall

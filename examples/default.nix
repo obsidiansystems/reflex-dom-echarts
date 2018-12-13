@@ -7,4 +7,8 @@ project ./. ({ ... }: {
   android.displayName = "Obelisk Minimal Example";
   ios.bundleIdentifier = "systems.obsidian.obelisk.examples.minimal";
   ios.bundleName = "Obelisk Minimal Example";
+  packages = {
+    echarts-jsdom = /home/divam/repos/reflex/echarts ;
+    # reflex-dom-echarts = /home/divam/repos/reflex/dom-echarts ;
+  };
 })

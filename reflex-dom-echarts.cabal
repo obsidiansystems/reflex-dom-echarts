@@ -18,8 +18,9 @@ library
                , time
                , unordered-containers
                , vector
+               , echarts-jsdom
                , reflex-dom
                , reflex
   exposed-modules:
-    Reflex.DOM.Widget.ECharts
+    Reflex.Dom.Widget.ECharts
   ghc-options: -Wall

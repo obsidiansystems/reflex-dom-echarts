@@ -12,8 +12,24 @@ library
                , reflex-dom
                , obelisk-generated-static
                , text
+               , echarts-jsdom
+               , containers
+               , text
+               , bytestring
+               , unordered-containers
+               , dependent-sum
+               , jsaddle-dom
+               , jsaddle
+               , time
+               , lens
+               , obelisk-executable-config
+               , aeson
+               , network-uri
+               , modern-uri
+               -- , reflex-dom-echarts
   exposed-modules:
     Frontend
+    Reflex.Dom.Widget.ECharts
   ghc-options: -Wall
 
 executable frontend
