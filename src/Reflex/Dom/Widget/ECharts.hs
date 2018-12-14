@@ -7,11 +7,19 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecursiveDo #-}
-module Reflex.Dom.Widget.ECharts where
+module Reflex.Dom.Widget.ECharts
+  ( LineChartConfig(..)
+  , Chart(..)
+  , TimeLineChartConfig(..)
+  , lineChart
+  , timeLineChart
+  , module X
+  )
+  where
 
 import Prelude hiding ((!!))
 import Reflex.Dom.Core
-import ECharts hiding (ffor)
+import ECharts as X hiding (ffor)
 
 import Language.Javascript.JSaddle
 
@@ -70,7 +78,7 @@ lineChart c = do
 
   -- Init the chart
   chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
-    ECharts.initECharts $ _element_raw e
+    X.initECharts $ _element_raw e
 
   void $ widgetHold blank $ ffor chartEv $ \chart -> do
     void $ networkView $ ffor cDyn $ \opt -> do
@@ -154,7 +162,7 @@ timeLineChart c = do
 
   -- Init the chart
   chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
-    ECharts.initECharts $ _element_raw e
+    X.initECharts $ _element_raw e
 
   void $ widgetHold blank $ ffor chartEv $ \chart -> do
     void $ networkView $ ffor cDyn $ \opt -> do

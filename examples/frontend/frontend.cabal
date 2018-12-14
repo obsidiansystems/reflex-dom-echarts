@@ -13,7 +13,6 @@ library
                , reflex
                , obelisk-generated-static
                , text
-               , echarts-jsdom
                , containers
                , text
                , bytestring

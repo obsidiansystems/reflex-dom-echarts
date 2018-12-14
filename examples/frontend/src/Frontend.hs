@@ -21,6 +21,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Text.URI
 import Data.Functor.Sum
 import Data.List.NonEmpty (nonEmpty)
+import qualified Data.Text as T
 
 import Common.Types
 import Common.Route
@@ -28,7 +29,6 @@ import Obelisk.Generated.Static
 import qualified Obelisk.ExecutableConfig as Cfg
 
 import Language.Javascript.JSaddle hiding ((!!))
-import ECharts hiding (ffor)
 import Control.Lens
 import Reflex.Dom.Widget.ECharts
 
@@ -304,3 +304,6 @@ cpuStatWebSocket r = do
               & webSocketConfig_send .~ (never :: Event t [Text])
             return (_webSocket_recv ws)
   return $ fmapMaybe (Aeson.decode . LBS.fromStrict) wsRespEv
+
+tshow :: Show a => a -> Text
+tshow = T.pack . show
