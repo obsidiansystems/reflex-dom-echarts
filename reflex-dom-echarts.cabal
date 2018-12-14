@@ -19,9 +19,8 @@ library
                , unordered-containers
                , vector
                , echarts-jsdom
-               , reflex-dom
+               , reflex-dom-core
                , reflex
-               , jsaddle-dom
                , jsaddle
   exposed-modules:
     Reflex.Dom.Widget.ECharts
