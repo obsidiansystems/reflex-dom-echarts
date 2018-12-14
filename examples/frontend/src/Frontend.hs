@@ -171,7 +171,6 @@ multipleXAxes =
       & series_name ?~ xSeriesName2
     xSeriesName1 = "2015"
     xSeriesName2 = "2016"
-    colors = ["#5793f3", "#d14a61", "#675bba"]
     y1 = Map.fromList $ zip (months xSeriesName1) $
       map DataDouble [2.6, 5.9, 9.0, 26.4, 28.7, 70.7, 175.6, 182.2, 48.7, 18.8, 6.0, 2.3]
     y2 = Map.fromList $ zip (months xSeriesName2) $
