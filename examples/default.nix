@@ -9,6 +9,6 @@ project ./. ({ ... }: {
   ios.bundleName = "Obelisk Minimal Example";
   packages = {
     echarts-jsdom = /home/divam/repos/reflex/echarts ;
-    # reflex-dom-echarts = /home/divam/repos/reflex/dom-echarts ;
+    reflex-dom-echarts = /home/divam/repos/reflex/dom-echarts ;
   };
 })

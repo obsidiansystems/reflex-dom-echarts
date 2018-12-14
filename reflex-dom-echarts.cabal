@@ -21,6 +21,8 @@ library
                , echarts-jsdom
                , reflex-dom
                , reflex
+               , jsaddle-dom
+               , jsaddle
   exposed-modules:
     Reflex.Dom.Widget.ECharts
   ghc-options: -Wall

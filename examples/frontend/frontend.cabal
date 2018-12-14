@@ -10,6 +10,7 @@ library
                , obelisk-frontend
                , obelisk-route
                , reflex-dom
+               , reflex
                , obelisk-generated-static
                , text
                , echarts-jsdom
@@ -26,10 +27,9 @@ library
                , aeson
                , network-uri
                , modern-uri
-               -- , reflex-dom-echarts
+               , reflex-dom-echarts
   exposed-modules:
     Frontend
-    Reflex.Dom.Widget.ECharts
   ghc-options: -Wall
 
 executable frontend
