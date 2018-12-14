@@ -4,19 +4,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 module Frontend where
 
-import qualified Data.Text as T
 import Obelisk.Frontend
 import Obelisk.Route
 import Reflex.Dom.Core
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Fix (MonadFix)
+import Control.Monad (void)
 import qualified Data.Map as Map
 import Data.Text (Text)
-import qualified Data.Some as Some
 import Data.Time
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -24,12 +22,12 @@ import Text.URI
 import Data.Functor.Sum
 import Data.List.NonEmpty (nonEmpty)
 
-import Common.Api
 import Common.Types
 import Common.Route
 import Obelisk.Generated.Static
 import qualified Obelisk.ExecutableConfig as Cfg
 
+import Language.Javascript.JSaddle hiding ((!!))
 import ECharts hiding (ffor)
 import Control.Lens
 import Reflex.Dom.Widget.ECharts
@@ -56,17 +54,16 @@ app
      , PerformEvent t m
      , TriggerEvent t m
      , Prerender js m
-     , MonadIO m
      )
   => Maybe Text
   -> m ()
 app r = prerender blank $ do
   pb <- getPostBuild
   ev <- cpuStatWebSocket r
-  widgetHold blank $ ffor pb $ \_ -> do
-    basicLineChart
-    cpuStatTimeLineChart ev
-    multipleXAxes
+  void $ widgetHold blank $ ffor pb $ \_ -> do
+    void $ basicLineChart
+    void $ cpuStatTimeLineChart ev
+    void $ multipleXAxes
     return ()
   return ()
 
@@ -74,7 +71,6 @@ tickWithSpeedSelector
   :: ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
-     , MonadSample t m
      , MonadFix m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
@@ -93,10 +89,13 @@ basicLineChart
   :: ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
-     , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
-     , _
+     , TriggerEvent t m
+     , MonadFix m
+     , MonadIO (Performable m)
+     , MonadJSM m
+     , MonadJSM (Performable m)
      )
   => m (Chart)
 basicLineChart = do
@@ -151,10 +150,11 @@ multipleXAxes
   :: ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
-     , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
-     , _
+     , MonadFix m
+     , MonadJSM m
+     , MonadJSM (Performable m)
      )
   => m (Chart)
 multipleXAxes =
@@ -224,7 +224,10 @@ cpuStatTimeLineChart
      , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
-     , _
+     , MonadFix m
+     , MonadIO (Performable m)
+     , MonadJSM m
+     , MonadJSM (Performable m)
      )
   => Event t (UTCTime, CpuStat Double)
   -> m (Chart)
@@ -263,14 +266,15 @@ cpuStatTimeLineChart ev = do
       ]
 
 cpuStatWebSocket
-  :: forall t m .
+  :: forall t m js .
      ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
      , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
-     , _
+     , Prerender js m
+     , TriggerEvent t m
      )
   => Maybe Text
   -> m (Event t (UTCTime, CpuStat Double))

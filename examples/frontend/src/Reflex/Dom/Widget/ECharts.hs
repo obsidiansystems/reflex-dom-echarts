@@ -16,10 +16,8 @@ import ECharts hiding (ffor)
 import Language.Javascript.JSaddle
 
 import Data.Time
-import Data.Some (Some)
 import qualified Data.Some as Some
-import Control.Monad (forM, void, foldM)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad (forM, void)
 import Control.Monad.Fix (MonadFix)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -49,14 +47,11 @@ data Chart = Chart
 
 lineChart
   :: forall t m k .
-     ( Ord k
-     , PostBuild t m
+     ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
-     , MonadFix m
      , MonadJSM m
      , MonadJSM (Performable m)
-     , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
      )
@@ -77,7 +72,7 @@ lineChart c = do
   chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
     ECharts.initECharts $ _element_raw e
 
-  widgetHold blank $ ffor chartEv $ \chart -> do
+  void $ widgetHold blank $ ffor chartEv $ \chart -> do
     void $ networkView $ ffor cDyn $ \opt -> do
       -- set first options
       optVObj <- liftJSM $ makeObject =<< toJSVal opt
@@ -117,7 +112,7 @@ lineChart c = do
               -- xAxis in ChartOptions correctly
               a <- (xAxisObj !! i) >>= makeObject
               setProp "data" v a
-        mapM f xs
+        mapM_ f xs
         xAxis <- toJSVal xAxisObj
         setProp "series" series optVObj
         setProp "xAxis" xAxis optVObj
@@ -138,14 +133,12 @@ data TimeLineChartConfig t k = TimeLineChartConfig
 
 timeLineChart
   :: forall t m k .
-     ( Ord k
-     , PostBuild t m
+     ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
      , MonadFix m
      , MonadJSM m
      , MonadJSM (Performable m)
-     , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
      )
@@ -163,7 +156,7 @@ timeLineChart c = do
   chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
     ECharts.initECharts $ _element_raw e
 
-  widgetHold blank $ ffor chartEv $ \chart -> do
+  void $ widgetHold blank $ ffor chartEv $ \chart -> do
     void $ networkView $ ffor cDyn $ \opt -> do
       -- set first options
       optVObj <- liftJSM $ makeObject =<< toJSVal opt
@@ -181,9 +174,9 @@ timeLineChart c = do
               f (t, v) = def
                 & data_name ?~ utcTimeToEpoch t
                 & data_value ?~ (utcTimeToEpoch t, v)
-            new <- mapM toJSVal (map f vs)
+            n <- mapM toJSVal (map f vs)
 
-            let newArrV = (drop ((length arr) + (length new) - len) arr) ++ new
+            let newArrV = (drop ((length arr) + (length n) - len) arr) ++ n
             v <- toJSVal newArrV
             setProp "data" v sVal
             return $ newArrV
@@ -196,11 +189,10 @@ timeLineChart c = do
         updEv = leftmost $ map snd vs
         seriesJSVals = map fst vs
 
-      performEvent $ ffor updEv $ \_ -> liftJSM $ do
+      networkHold (return ()) $ ffor updEv $ \_ -> liftJSM $ do
         dv <- toJSVal seriesJSVals
         setProp "series" dv optVObj
         toJSVal optVObj >>= setOptionWithCatch chart
-      return ()
 
   return Chart
 
