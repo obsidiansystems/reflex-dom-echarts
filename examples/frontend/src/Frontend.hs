@@ -15,7 +15,7 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad (void)
 import qualified Data.Map as Map
 import Data.Text (Text)
-import Data.Time
+import Data.Time hiding (months)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Text.URI
@@ -123,7 +123,7 @@ basicLineChart = do
     let ev = gate (current $ value cb) tick
     foldDyn (\_ (l:ls) -> ls ++ [l]) xAxisData ev
 
-  let chartDataDyn = (0 =: (def, dd, xd)) <> (1 =: (dd2Series, dd2, xd))
+  let chartDataDyn = ((0::Int) =: (def, dd, xd)) <> (1 =: (dd2Series, dd2, xd))
       dd2Series = def
         & series_smooth ?~ Left True
         & series_areaStyle ?~ def
@@ -152,7 +152,6 @@ multipleXAxes
      , PerformEvent t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
-     , MonadFix m
      , MonadJSM m
      , MonadJSM (Performable m)
      )
@@ -161,7 +160,7 @@ multipleXAxes =
   lineChart $ LineChartConfig (600, 400) (constDyn multipleXAxesOpts)
     (chartDataDyn)
   where
-    chartDataDyn = (0 =: (s1, constDyn y1, constDyn x1)) <> (1 =: (s2, constDyn y2, constDyn x2))
+    chartDataDyn = ((0::Int) =: (s1, constDyn y1, constDyn x1)) <> (1 =: (s2, constDyn y2, constDyn x2))
     s1 = def
       & series_smooth ?~ Left True
       & series_name ?~ xSeriesName1
@@ -175,7 +174,7 @@ multipleXAxes =
       map DataDouble [2.6, 5.9, 9.0, 26.4, 28.7, 70.7, 175.6, 182.2, 48.7, 18.8, 6.0, 2.3]
     y2 = Map.fromList $ zip (months xSeriesName2) $
       map DataDouble [3.9, 5.9, 11.1, 18.7, 48.3, 69.2, 231.6, 46.6, 55.4, 18.4, 10.3, 0.7]
-    months y = map (\m -> y <> "-" <> tshow m) [1..12]
+    months y = map (\m -> y <> "-" <> tshow m) [1::Int .. 12]
     x1 = months xSeriesName1
     x2 = months xSeriesName2
 
@@ -221,11 +220,9 @@ cpuStatTimeLineChart
   :: ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
-     , MonadSample t m
      , MonadHold t m
      , GhcjsDomSpace ~ DomBuilderSpace m
      , MonadFix m
-     , MonadIO (Performable m)
      , MonadJSM m
      , MonadJSM (Performable m)
      )
@@ -270,9 +267,6 @@ cpuStatWebSocket
      ( PostBuild t m
      , DomBuilder t m
      , PerformEvent t m
-     , MonadSample t m
-     , MonadHold t m
-     , GhcjsDomSpace ~ DomBuilderSpace m
      , Prerender js m
      , TriggerEvent t m
      )
