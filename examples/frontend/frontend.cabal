@@ -18,7 +18,6 @@ library
                , bytestring
                , unordered-containers
                , dependent-sum
-               , jsaddle-dom
                , jsaddle
                , time
                , lens
