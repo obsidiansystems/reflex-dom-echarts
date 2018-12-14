@@ -1,0 +1,28 @@
+name: reflex-dom-echarts
+version: 0.1
+cabal-version: >= 1.8
+build-type: Simple
+
+library
+  hs-source-dirs: src
+  build-depends: base
+               , aeson
+               , bytestring
+               , containers
+               , data-default
+               , ghcjs-dom
+               , dependent-sum
+               , lens
+               , scientific
+               , text
+               , time
+               , unordered-containers
+               , vector
+               , echarts-jsdom
+               , reflex-dom
+               , reflex
+               , jsaddle-dom
+               , jsaddle
+  exposed-modules:
+    Reflex.Dom.Widget.ECharts
+  ghc-options: -Wall

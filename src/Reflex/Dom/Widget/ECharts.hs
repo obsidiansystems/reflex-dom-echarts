@@ -1,0 +1,214 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecursiveDo #-}
+module Reflex.Dom.Widget.ECharts
+  ( LineChartConfig(..)
+  , Chart(..)
+  , TimeLineChartConfig(..)
+  , lineChart
+  , timeLineChart
+  , module X
+  )
+  where
+
+import Prelude hiding ((!!))
+import Reflex.Dom.Core
+import ECharts as X hiding (ffor)
+
+import Language.Javascript.JSaddle
+
+import Data.Time
+import qualified Data.Some as Some
+import Control.Monad (forM, void)
+import Control.Monad.Fix (MonadFix)
+import qualified Data.Map as Map
+import Data.Map (Map)
+import qualified Data.Text as T
+import Data.Text (Text)
+import Control.Lens
+import Reflex.Network
+
+type XAxisData = Text
+
+data LineChartConfig t k = LineChartConfig
+  -- XXX Can be made a Dynamic
+  -- and use this API to adjust size
+  -- https://ecomfe.github.io/echarts-doc/public/en/api.html#echartsInstance.resize
+  { _lineChartConfig_size :: (Int, Int)
+  -- We will re-create the whole chart if the options change
+  , _lineChartConfig_options :: Dynamic t ChartOptions
+  , _lineChartConfig_series :: Map k
+    ( Series SeriesLine
+    , Dynamic t (Map XAxisData (Data SeriesLine))
+    , Dynamic t [XAxisData]
+    )
+  }
+
+-- Currently nothing interesting here
+data Chart = Chart
+
+lineChart
+  :: forall t m k .
+     ( PostBuild t m
+     , DomBuilder t m
+     , PerformEvent t m
+     , MonadJSM m
+     , MonadJSM (Performable m)
+     , MonadHold t m
+     , GhcjsDomSpace ~ DomBuilderSpace m
+     )
+  => LineChartConfig t k
+  -> m Chart
+lineChart c = do
+  let
+    cDyn = _lineChartConfig_options c
+    attr = (_lineChartConfig_size c) & \(w, h) ->
+      "style" =: ("width:" <> tshow w <> "px; height:" <> tshow h <> "px;")
+  e <- fst <$> elAttr' "div" attr blank
+
+  -- The initialization is done using PostBuild because the element need
+  -- to be present in the DOM before calling echarts APIs
+  p <- getPostBuild
+
+  -- Init the chart
+  chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
+    X.initECharts $ _element_raw e
+
+  void $ widgetHold blank $ ffor chartEv $ \chart -> do
+    void $ networkView $ ffor cDyn $ \opt -> do
+      -- set first options
+      optVObj <- liftJSM $ makeObject =<< toJSVal opt
+
+      -- Convert the user specified "series" options to JSVal
+      -- and modify it according to the Dynamic values
+      -- (series, (series.xAxisIndex, xAxis[i].data))
+      -- The (xAxisIndex, xAxis[i].data) are later used to modify the "xAxis" object
+      vs :: [(Object, Event t (Int, JSVal))] <-
+        forM (Map.elems $ _lineChartConfig_series c) $ \(s, dd, xd) -> do
+          -- series options without the data
+          sVal <- liftJSM (makeObject =<< toJSVal (Some.This $ SeriesT_Line s))
+
+          let
+            i = maybe 0 id (s ^. series_xAxisIndex)
+            yx = (,) <$> dd <*> xd
+
+          ev <- networkView $ ffor yx $ \(m, xs) -> liftJSM $ do
+            -- The ordering of elements is determined by xs
+            -- XXX default value of 0 might be wrong here
+            dv <- toJSVal (map (\x -> Map.findWithDefault (DataInt 0) x m) xs)
+            setProp "data" dv sVal
+            toJSVal xs
+
+          return (sVal, (,) i <$> ev)
+
+      let
+        updEv = mergeList $ map snd vs
+        seriesJSVals = map fst vs
+
+      networkHold (return ()) $ ffor updEv $ \xs -> liftJSM $ do
+        series <- toJSVal seriesJSVals
+        xAxisObj <- getProp "xAxis" optVObj >>= makeObject
+
+        let f (i, v) = do
+              -- XXX This can throw exception if user did not specify
+              -- xAxis in ChartOptions correctly
+              a <- (xAxisObj !! i) >>= makeObject
+              setProp "data" v a
+        mapM_ f xs
+        xAxis <- toJSVal xAxisObj
+        setProp "series" series optVObj
+        setProp "xAxis" xAxis optVObj
+        toJSVal optVObj >>= setOptionWithCatch chart
+
+  return Chart
+
+data TimeLineChartConfig t k = TimeLineChartConfig
+  { _timeLineChartConfig_size :: (Int, Int)
+  -- We will re-create the whole chart
+  , _timeLineChartConfig_options :: Dynamic t ChartOptions
+  , _timeLineChartConfig_appendData :: Map k
+    ( Series SeriesLine
+    , Int -- max number of data points
+    , Event t [(UTCTime, Double)]
+    )
+  }
+
+timeLineChart
+  :: forall t m k .
+     ( PostBuild t m
+     , DomBuilder t m
+     , PerformEvent t m
+     , MonadFix m
+     , MonadJSM m
+     , MonadJSM (Performable m)
+     , MonadHold t m
+     , GhcjsDomSpace ~ DomBuilderSpace m
+     )
+  => TimeLineChartConfig t k
+  -> m Chart
+timeLineChart c = do
+  let
+    cDyn = _timeLineChartConfig_options c
+    attr = (_timeLineChartConfig_size c) & \(w, h) ->
+      "style" =: ("width:" <> tshow w <> "px; height:" <> tshow h <> "px;")
+  e <- fst <$> elAttr' "div" attr blank
+  p <- getPostBuild
+
+  -- Init the chart
+  chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
+    X.initECharts $ _element_raw e
+
+  void $ widgetHold blank $ ffor chartEv $ \chart -> do
+    void $ networkView $ ffor cDyn $ \opt -> do
+      -- set first options
+      optVObj <- liftJSM $ makeObject =<< toJSVal opt
+
+      vs <- forM (Map.elems $ _timeLineChartConfig_appendData c) $ \(s, len, ev) -> do
+        -- series object
+        sVal <- liftJSM (makeObject =<< toJSVal (Some.This $ SeriesT_Line s))
+
+        rec
+          newArr <- performEvent $ ffor (attach (current arrDyn) ev) $ \(arr, vs) -> liftJSM $ do
+            let
+              -- The timeline needs special data object with name and value fields
+              -- the value has to be a tuple like this to render properly
+              f :: (UTCTime, Double) -> Data SeriesLine
+              f (t, v) = def
+                & data_name ?~ utcTimeToEpoch t
+                & data_value ?~ (utcTimeToEpoch t, v)
+            n <- mapM toJSVal (map f vs)
+
+            let newArrV = (drop ((length arr) + (length n) - len) arr) ++ n
+            v <- toJSVal newArrV
+            setProp "data" v sVal
+            return $ newArrV
+
+          arrDyn <- holdDyn [] newArr
+
+        return (sVal, () <$ newArr)
+
+      let
+        updEv = leftmost $ map snd vs
+        seriesJSVals = map fst vs
+
+      networkHold (return ()) $ ffor updEv $ \_ -> liftJSM $ do
+        dv <- toJSVal seriesJSVals
+        setProp "series" dv optVObj
+        toJSVal optVObj >>= setOptionWithCatch chart
+
+  return Chart
+
+setOptionWithCatch :: ECharts -> JSVal -> JSM ()
+setOptionWithCatch c o = setOptionJSVal c o
+  -- When doing development with jsaddle, the exceptions thrown by echarts are not shown
+  -- This is a workaround to capture and show the exceptions
+  -- `catch` \(JSException e) -> (valToText e) >>= (liftIO . putStrLn . show) >> return ()
+
+tshow :: Show a => a -> Text
+tshow = T.pack . show
