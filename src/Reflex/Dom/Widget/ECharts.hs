@@ -27,6 +27,7 @@ import Data.Time
 import qualified Data.Some as Some
 import Control.Monad (forM, void)
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Text as T
@@ -111,19 +112,21 @@ lineChart c = do
         updEv = mergeList $ map snd vs
         seriesJSVals = map fst vs
 
-      networkHold (return ()) $ ffor updEv $ \xs -> liftJSM $ do
+      performEvent_ $ ffor updEv $ \xs -> liftJSM $ do
         series <- toJSVal seriesJSVals
         xAxisObj <- getProp "xAxis" optVObj >>= makeObject
-
-        let f (i, v) = do
-              -- XXX This can throw exception if user did not specify
-              -- xAxis in ChartOptions correctly
+        let
+          f v = f' v
+            `catch` \(JSException e) -> liftIO $ putStrLn
+            "reflex-dom-echarts: Error in '_lineChartConfig_series' value.\
+           \ The 'xAxis' for specified 'xAxisIndex' does not exist in 'ChartOptions'"
+          f' (i, v) = do
               a <- (xAxisObj !! i) >>= makeObject
               setProp "data" v a
         mapM_ f xs
         xAxis <- toJSVal xAxisObj
-        setProp "series" series optVObj
         setProp "xAxis" xAxis optVObj
+        setProp "series" series optVObj
         toJSVal optVObj >>= setOptionWithCatch chart
 
   return Chart
@@ -197,7 +200,7 @@ timeLineChart c = do
         updEv = leftmost $ map snd vs
         seriesJSVals = map fst vs
 
-      networkHold (return ()) $ ffor updEv $ \_ -> liftJSM $ do
+      performEvent_ $ ffor updEv $ \_ -> liftJSM $ do
         dv <- toJSVal seriesJSVals
         setProp "series" dv optVObj
         toJSVal optVObj >>= setOptionWithCatch chart

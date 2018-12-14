@@ -28,7 +28,7 @@ import Common.Route
 import Obelisk.Generated.Static
 import qualified Obelisk.ExecutableConfig as Cfg
 
-import Language.Javascript.JSaddle hiding ((!!))
+import Language.Javascript.JSaddle
 import Control.Lens
 import Reflex.Dom.Widget.ECharts
 
@@ -201,7 +201,7 @@ multipleXAxes =
         & axis_axisTick ?~ (def & axisTick_alignWithLabel ?~ True)
         & axis_axisLine ?~ (def
           & axisLine_onZero ?~ False
-          & axisLine_lineStyle ?~ (def & lineStyle_color ?~ colors !! 1))
+          & axisLine_lineStyle ?~ (def & lineStyle_color ?~ "#5793f3"))
         -- TODO formatter
         -- & axis_axisPointer ?~ (def
         --   & axisPointer_label ?~ def)
@@ -211,11 +211,12 @@ multipleXAxes =
         & axis_axisTick ?~ (def & axisTick_alignWithLabel ?~ True)
         & axis_axisLine ?~ (def
           & axisLine_onZero ?~ False
-          & axisLine_lineStyle ?~ (def & lineStyle_color ?~ colors !! 0))
+          & axisLine_lineStyle ?~ (def & lineStyle_color ?~ "#d14a61"))
         -- TODO formatter
         -- & axis_axisPointer ?~ (def
         --   & axisPointer_label ?~ def)
-        & axis_data ?~ zip x1 (repeat Nothing)) : []
+        & axis_data ?~ zip x1 (repeat Nothing))
+      : []
 
 cpuStatTimeLineChart
   :: ( PostBuild t m
