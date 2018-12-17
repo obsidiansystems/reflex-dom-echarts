@@ -1,7 +1,0 @@
-{
-  "url": "ssh://git@gitlab.com/obsidian.systems/echarts.git",
-  "rev": "7bde711216aabfe34e1d11c996916701dd180cdc",
-  "sha256": "0gd8b9ii059hm4zxc6wbv07mbf3l8y0k6rqbsljpzyaz89yb5l44",
-  "fetchSubmodules": false,
-  "branch": "dn-make-lib"
-}

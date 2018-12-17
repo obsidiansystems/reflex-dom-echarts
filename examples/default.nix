@@ -4,7 +4,7 @@
 with import ./.obelisk/impl { inherit system iosSdkVersion; };
 project ./. ({ hackGet, ... }: {
   packages = {
-    echarts-jsdom = hackGet ./echarts-jsdom;
+    echarts-jsdom = hackGet ./dep/echarts-jsdom;
     reflex-dom-echarts = ../.;
   };
 })
