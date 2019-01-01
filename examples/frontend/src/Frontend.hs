@@ -58,13 +58,20 @@ app
   => Maybe Text
   -> m ()
 app r = prerender blank $ do
-  pb <- getPostBuild
   ev <- cpuStatWebSocket r
-  void $ widgetHold blank $ ffor pb $ \_ -> do
-    void $ basicLineChart
-    void $ cpuStatTimeLineChart ev
-    void $ multipleXAxes
-    return ()
+  let
+    delayedRender [] = return ()
+    delayedRender (m:ms) = do
+      c <- m
+      (ev1, _) <- headTailE (_chart_finished c)
+      void $ widgetHold blank $ ffor ev1 $ \_ -> do
+        delayedRender ms
+  -- Render charts one after another
+  delayedRender
+    [ basicLineChart
+    , cpuStatTimeLineChart ev
+    , multipleXAxes
+    ]
   return ()
 
 tickWithSpeedSelector
@@ -97,7 +104,7 @@ basicLineChart
      , MonadJSM m
      , MonadJSM (Performable m)
      )
-  => m (Chart)
+  => m (Chart t)
 basicLineChart = do
   tick <- tickWithSpeedSelector
   let
@@ -151,11 +158,12 @@ multipleXAxes
      , DomBuilder t m
      , PerformEvent t m
      , MonadHold t m
+     , TriggerEvent t m
      , GhcjsDomSpace ~ DomBuilderSpace m
      , MonadJSM m
      , MonadJSM (Performable m)
      )
-  => m (Chart)
+  => m (Chart t)
 multipleXAxes =
   lineChart $ LineChartConfig (600, 400) (constDyn multipleXAxesOpts)
     (chartDataDyn)
@@ -224,10 +232,11 @@ cpuStatTimeLineChart
      , GhcjsDomSpace ~ DomBuilderSpace m
      , MonadFix m
      , MonadJSM m
+     , TriggerEvent t m
      , MonadJSM (Performable m)
      )
   => Event t (UTCTime, CpuStat Double)
-  -> m (Chart)
+  -> m (Chart t)
 cpuStatTimeLineChart ev = do
   timeLineChart $ TimeLineChartConfig (600, 400) (constDyn opts)
     chartData
