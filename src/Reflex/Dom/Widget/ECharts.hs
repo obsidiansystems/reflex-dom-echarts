@@ -51,8 +51,10 @@ data LineChartConfig t k = LineChartConfig
     )
   }
 
--- Currently nothing interesting here
-data Chart = Chart
+data Chart t = Chart
+  { _chart_rendered :: Event t ()
+  , _chart_finished :: Event t ()
+  }
 
 lineChart
   :: forall t m k .
@@ -62,10 +64,11 @@ lineChart
      , MonadJSM m
      , MonadJSM (Performable m)
      , MonadHold t m
+     , TriggerEvent t m
      , GhcjsDomSpace ~ DomBuilderSpace m
      )
   => LineChartConfig t k
-  -> m Chart
+  -> m (Chart t)
 lineChart c = do
   let
     cDyn = _lineChartConfig_options c
@@ -76,10 +79,15 @@ lineChart c = do
   -- The initialization is done using PostBuild because the element need
   -- to be present in the DOM before calling echarts APIs
   p <- getPostBuild
+  (evR, onActionR) <- newTriggerEvent
+  (evF, onActionF) <- newTriggerEvent
 
   -- Init the chart
   chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
-    X.initECharts $ _element_raw e
+    chart <- X.initECharts $ _element_raw e
+    X.onRenderedAction chart (liftIO $ onActionR ())
+    X.onFinishedAction chart (liftIO $ onActionF ())
+    return chart
 
   void $ widgetHold blank $ ffor chartEv $ \chart -> do
     void $ networkView $ ffor cDyn $ \opt -> do
@@ -129,7 +137,7 @@ lineChart c = do
         setProp "series" series optVObj
         toJSVal optVObj >>= setOptionWithCatch chart
 
-  return Chart
+  return (Chart evR evF)
 
 data TimeLineChartConfig t k = TimeLineChartConfig
   { _timeLineChartConfig_size :: (Int, Int)
@@ -151,10 +159,11 @@ timeLineChart
      , MonadJSM m
      , MonadJSM (Performable m)
      , MonadHold t m
+     , TriggerEvent t m
      , GhcjsDomSpace ~ DomBuilderSpace m
      )
   => TimeLineChartConfig t k
-  -> m Chart
+  -> m (Chart t)
 timeLineChart c = do
   let
     cDyn = _timeLineChartConfig_options c
@@ -162,10 +171,18 @@ timeLineChart c = do
       "style" =: ("width:" <> tshow w <> "px; height:" <> tshow h <> "px;")
   e <- fst <$> elAttr' "div" attr blank
   p <- getPostBuild
+  (evR, onActionR) <- newTriggerEvent
+  (evF, onActionF) <- newTriggerEvent
 
   -- Init the chart
   chartEv <- performEvent $ ffor p $ \_ -> liftJSM $ do
-    X.initECharts $ _element_raw e
+    chart <- X.initECharts $ _element_raw e
+    -- This causes a flickr in charts
+    -- dont know what is the fix
+    -- X.onRenderedAction chart (liftIO $ onActionR ())
+    -- X.onFinishedAction chart (liftIO $ onActionF ())
+    -- Meanwhile trigger these actions on setting the options below
+    return chart
 
   void $ widgetHold blank $ ffor chartEv $ \chart -> do
     void $ networkView $ ffor cDyn $ \opt -> do
@@ -204,8 +221,11 @@ timeLineChart c = do
         dv <- toJSVal seriesJSVals
         setProp "series" dv optVObj
         toJSVal optVObj >>= setOptionWithCatch chart
+        -- This is a workaround, see the comments above
+        liftIO $ onActionR ()
+        liftIO $ onActionF ()
 
-  return Chart
+  return (Chart evR evF)
 
 setOptionWithCatch :: ECharts -> JSVal -> JSM ()
 setOptionWithCatch c o = setOptionJSVal c o
