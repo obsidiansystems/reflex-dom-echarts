@@ -11,7 +11,7 @@ library
                , containers
                , data-default
                , ghcjs-dom
-               , dependent-sum
+               , dependent-sum >= 0.7.1.0
                , lens
                , scientific
                , text
