@@ -101,7 +101,7 @@ lineChart c = do
       vs :: [(Object, Event t (Int, JSVal))] <-
         forM (Map.elems $ _lineChartConfig_series c) $ \(s, dd, xd) -> do
           -- series options without the data
-          sVal <- liftJSM (makeObject =<< toJSVal (Some.mkSome $ SeriesT_Line s))
+          sVal <- liftJSM (makeObject =<< toJSVal (Some.Some $ SeriesT_Line s))
 
           let
             i = maybe 0 id (s ^. series_xAxisIndex)
@@ -191,7 +191,7 @@ timeLineChart c = do
 
       vs <- forM (Map.elems $ _timeLineChartConfig_appendData c) $ \(s, len, ev) -> do
         -- series object
-        sVal <- liftJSM (makeObject =<< toJSVal (Some.mkSome $ SeriesT_Line s))
+        sVal <- liftJSM (makeObject =<< toJSVal (Some.Some $ SeriesT_Line s))
 
         rec
           newArr <- performEvent $ ffor (attach (current arrDyn) ev) $ \(arr, vs) -> liftJSM $ do
