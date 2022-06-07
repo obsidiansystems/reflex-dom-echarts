@@ -125,9 +125,6 @@ lineChart c = do
         xAxisObj <- getProp "xAxis" optVObj >>= makeObject
         let
           f v = f' v
-            `catch` \(JSException e) -> liftIO $ putStrLn
-            "reflex-dom-echarts: Error in '_lineChartConfig_series' value.\
-           \ The 'xAxis' for specified 'xAxisIndex' does not exist in 'ChartOptions'"
           f' (i, v) = do
               a <- (xAxisObj !! i) >>= makeObject
               setProp "data" v a
